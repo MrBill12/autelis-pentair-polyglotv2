@@ -349,7 +349,7 @@ class Controller(polyinterface.Controller):
             solarSensor = int(system.find("sensor2").text)
             airSensor = int(system.find("sensor3").text)
             airTemp = int(temp.find("airtemp").text)
-            solarTemp = int(temp.find("soltemp").text)
+            solarTemp = int(temp.find("soltemp"))
 
             # Update the controller node drivers
             self.setDriver("GV0", runstate, report)
