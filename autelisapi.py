@@ -12,6 +12,7 @@ import requests
 
 # Parameters for Pool Control HTTP Command Interface
 _STATUS_ENDPOINT = "status.xml"
+_NAMES_ENDPOINT = "names.xml"
 _COMMAND_ENDPOINT = "set.cgi"
 _AUTELIS_ON_VALUE = 1
 _AUTELIS_OFF_VALUE = 0
@@ -67,6 +68,37 @@ class AutelisInterface(object):
         statusXML = xml.fromstring(response.text)
         if statusXML.tag == "response":
             return statusXML
+        else:
+            self._logger.warning("%s returned invalid XML in response", response.url)
+            return None
+
+    # Gets the circuit/node names XML from the Pool Controller
+    def get_names(self):
+
+        self._logger.debug("In get_names()...")
+
+        try:
+            response = requests.get(
+                "http://{host_addr}/{device_list_endpoint}".format(
+                    host_addr=self.controllerAddr,
+                    device_list_endpoint=_NAMES_ENDPOINT
+                ),
+                auth=(self._userName, self._password),
+                timeout=3.05
+            )
+            response.raise_for_status()    # Raise HTTP errors to be handled in exception handling
+
+        # Allow timeout and connection errors to be ignored - log and return no XML
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+            self._logger.warning("HTTP GET in get_names() failed - %s", str(e))
+            return None
+        except:
+            self._logger.error("Unexpected error occured - %s", sys.exc_info()[0])
+            raise
+
+        namesXML = xml.fromstring(response.text)
+        if namesXML.tag == "response":
+            return namesXML
         else:
             self._logger.warning("%s returned invalid XML in response", response.url)
             return None

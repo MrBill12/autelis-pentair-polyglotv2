@@ -175,7 +175,7 @@ class Controller(polyinterface.Controller):
 
     def __init__(self, poly):
         super(Controller, self).__init__(poly)
-        self.name = "controller"
+        self.name = "Pentair-Pool-Spa"
         self.autelis = None
         self.pollingInterval = 20
         self.ignoresolar = False
@@ -218,8 +218,11 @@ class Controller(polyinterface.Controller):
         try:
             customParams = self.poly.config["customParams"]
             ip = customParams["ipaddress"]
-            username = customParams["username"]
+            #username = customParams["username"]
             password = customParams["password"]
+            #ip = "192.168.1.98"
+            username = "admin"
+            
         except KeyError:
             _LOGGER.error("Missing controller settings in configuration.")
             raise
@@ -278,17 +281,20 @@ class Controller(polyinterface.Controller):
     # Create nodes for all devices from the autelis interface
     def discover_nodes(self):
 
-        # get the status XML from the autelis device
+        # get the status XML and names XML from the autelis device
         statusXML = self.autelis.get_status()
+        namesXML = self.autelis.get_names()
 
-        if statusXML is None:
-            _LOGGER.error("No status XML returned from Autelis device on startup.")
+
+        if (statusXML or namesXML) is None:
+            _LOGGER.error("No XML returned from Autelis device on startup.")
             sys.exit("Failure on intial communications with Autelis device.")   
 
         else:
 
             # dump the XML to the log
             _LOGGER.debug("Status XML: %s", "\n" + XML.tostring(statusXML).decode())
+            _LOGGER.debug("Names XML: %s", "\n" + XML.tostring(namesXML).decode())
 
             # Get the temp units and update the controller node if needed
             temp = statusXML.find("temp")
@@ -302,17 +308,25 @@ class Controller(polyinterface.Controller):
                 self.addNode(tempNode)
 
             # Iterate equipment child elements and process each
-            equipment = statusXML.find("equipment")
+            equipment = namesXML.find("equipment")
             for element in list(equipment):
 
-                # Only process elements that have text values (assuming blank
-                # elements are not part of the installed/configured equipment).
-                 if not element.text is None:
+                addr = element.tag
+                name = element.text
 
-                    addr = element.tag
-
+                # Only process name elements that have text values (assuming blank
+                # elements are not part of the installed/configured equipment) also 
+                # eliminate nodes with facotry default names.
+                if element.text is None or \
+                   name.find("AUX ", 0, 5) == 0 or \
+                   name.find("FEATURE ", 0, 9) == 0 or \
+                   name.find("CIRCUIT ", 0, 9) == 0 or \
+                   name.find("USERNAME", 0, 9) == 0:
+                    # nothing
+                    pass
+                else:                    
                     # Create the EQUIPMENT node
-                    equipNode = Equipment(self, self.address, addr, addr)
+                    equipNode = Equipment(self, self.address, addr, name.title())
                     self.addNode(equipNode)
                         
     # Creates or updates the state values of all nodes from the autelis interface
@@ -349,7 +363,7 @@ class Controller(polyinterface.Controller):
             solarSensor = int(system.find("sensor2").text)
             airSensor = int(system.find("sensor3").text)
             airTemp = int(temp.find("airtemp").text)
-            solarTemp = int(temp.find("soltemp"))
+            solarTemp = int(0)
 
             # Update the controller node drivers
             self.setDriver("GV0", runstate, report)
